@@ -1,3 +1,4 @@
+use std::env;
 #[allow(unused_imports)]
 use std::io::{self, Write};
 
@@ -27,6 +28,12 @@ fn main() -> std::io::Result<()> {
                 if matches!(type_arg.as_str(), "exit" | "echo" | "type") {
                     println!("{} is a shell builtin", type_arg);
                 } else {
+                    if let Some(paths) = env::var_os("PATH") {
+                        for path in env::split_paths(&paths) {
+                            println!("{}", path.display())
+                        }
+                    }
+
                     println!("{}: not found", type_arg);
                 }
             }
