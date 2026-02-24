@@ -21,6 +21,15 @@ fn main() -> std::io::Result<()> {
             "echo" => {
                 println!("{}", args[1..].join(" "));
             }
+            "type" => {
+                let type_arg = args[1..].join(" ");
+
+                if matches!(type_arg.as_str(), "exit" | "echo" | "type") {
+                    println!("{} is a shell builtin", type_arg);
+                } else {
+                    println!("{}: not found", type_arg);
+                }
+            }
             _ => {
                 println!("{}: command not found", command.trim());
             }
