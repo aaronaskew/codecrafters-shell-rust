@@ -10,6 +10,10 @@ fn main() -> std::io::Result<()> {
 
         io::stdin().read_line(&mut command)?;
 
+        if command.trim() == "exit" {
+            break Ok(());
+        }
+
         println!("{}: command not found", command.trim());
     }
 }
