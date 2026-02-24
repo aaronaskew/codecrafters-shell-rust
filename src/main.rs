@@ -10,10 +10,20 @@ fn main() -> std::io::Result<()> {
 
         io::stdin().read_line(&mut command)?;
 
-        if command.trim() == "exit" {
-            break Ok(());
-        }
+        let args: Vec<String> = command.split_whitespace().map(String::from).collect();
 
-        println!("{}: command not found", command.trim());
+        let first = args.first().unwrap().as_str();
+
+        match first {
+            "exit" => {
+                break Ok(());
+            }
+            "echo" => {
+                println!("{}", args[1..].join(" "));
+            }
+            _ => {
+                println!("{}: command not found", command.trim());
+            }
+        }
     }
 }
