@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::{
-    env::{self, current_dir},
+    env::{self, current_dir, set_current_dir},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -31,7 +31,7 @@ fn main() -> std::io::Result<()> {
             "type" => {
                 let command = args[1].clone();
 
-                if matches!(command.as_str(), "exit" | "echo" | "type" | "pwd") {
+                if matches!(command.as_str(), "exit" | "echo" | "type" | "pwd" | "cd") {
                     println!("{} is a shell builtin", command);
                 } else {
                     if let Some(executable_path) = executable(&command) {
@@ -43,6 +43,17 @@ fn main() -> std::io::Result<()> {
             }
             "pwd" => {
                 println!("{}", current_dir()?.display());
+            }
+            "cd" => {
+                let path = Path::new(&args[1]);
+
+                if let Ok(exists) = path.try_exists()
+                    && exists
+                {
+                    set_current_dir(path).unwrap();
+                } else {
+                    println!("cd: {}: No such file or directory", &args[1]);
+                }
             }
             _ => {
                 if executable(first_arg).is_some() {
