@@ -3,6 +3,7 @@ use std::io::{self, Write};
 use std::{
     env,
     path::{Path, PathBuf},
+    process::Command,
 };
 
 use is_executable::IsExecutable;
@@ -18,9 +19,9 @@ fn main() -> std::io::Result<()> {
 
         let args: Vec<String> = command.split_whitespace().map(String::from).collect();
 
-        let first = args.first().unwrap().as_str();
+        let first_arg = args.first().unwrap().as_str();
 
-        match first {
+        match first_arg {
             "exit" => {
                 break Ok(());
             }
@@ -28,26 +29,38 @@ fn main() -> std::io::Result<()> {
                 println!("{}", args[1..].join(" "));
             }
             "type" => {
-                let type_arg = args[1..].join(" ");
+                let command = args[1].clone();
 
-                if matches!(type_arg.as_str(), "exit" | "echo" | "type") {
-                    println!("{} is a shell builtin", type_arg);
+                if matches!(command.as_str(), "exit" | "echo" | "type") {
+                    println!("{} is a shell builtin", command);
                 } else {
-                    if let Some(executable_path) = executable(args[1].clone()) {
-                        println!("{} is {}", args[1], executable_path.display());
+                    if let Some(executable_path) = executable(&command) {
+                        println!("{} is {}", &command, executable_path.display());
                     } else {
-                        println!("{}: not found", type_arg);
+                        println!("{}: not found", command);
                     }
                 }
             }
             _ => {
-                println!("{}: command not found", command.trim());
+                if executable(first_arg).is_some() {
+                    let output = Command::new(first_arg).args(args[1..].iter()).output()?;
+
+                    if output.status.success() {
+                        let s = String::from_utf8_lossy(&output.stdout);
+                        print!("{}", s);
+                    } else {
+                        let err = String::from_utf8_lossy(&output.stderr);
+                        eprintln!("Error: {}", err);
+                    }
+                } else {
+                    println!("{}: command not found", command.trim());
+                }
             }
         }
     }
 }
 
-fn executable(name: String) -> Option<PathBuf> {
+fn executable(name: &str) -> Option<PathBuf> {
     if let Some(paths) = env::var_os("PATH") {
         for path in env::split_paths(&paths) {
             let path_string = format!("{}/{}", path.display(), name);
