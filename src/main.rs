@@ -6,18 +6,34 @@ use std::{
     process::Command,
 };
 
+use anyhow::Result;
 use is_executable::IsExecutable;
+use nom::{
+    IResult, Parser,
+    branch::alt,
+    bytes::complete::{escaped, is_not, tag},
+    character::complete::{one_of, space0},
+    combinator::all_consuming,
+    multi::separated_list1,
+    sequence::delimited,
+};
 
-fn main() -> std::io::Result<()> {
+fn main() -> Result<()> {
     loop {
         print!("$ ");
         io::stdout().flush()?;
 
-        let mut command = String::new();
+        let mut input = String::new();
 
-        io::stdin().read_line(&mut command)?;
+        io::stdin().read_line(&mut input)?;
 
-        let args: Vec<String> = command.split_whitespace().map(String::from).collect();
+        let input = input.trim();
+        
+        if input.is_empty() {
+            continue;
+        }
+
+        let (_, args) = all_consuming(parser).parse(input).unwrap();
 
         let first_arg = args.first().unwrap().as_str();
 
@@ -54,7 +70,7 @@ fn main() -> std::io::Result<()> {
                 if let Ok(exists) = path.try_exists()
                     && exists
                 {
-                    set_current_dir(path).unwrap();
+                    set_current_dir(path)?;
                 } else {
                     println!("cd: {}: No such file or directory", &args[1]);
                 }
@@ -71,7 +87,7 @@ fn main() -> std::io::Result<()> {
                         eprintln!("Error: {}", err);
                     }
                 } else {
-                    println!("{}: command not found", command.trim());
+                    println!("{}: command not found", input.trim());
                 }
             }
         }
@@ -92,4 +108,33 @@ fn executable(name: &str) -> Option<PathBuf> {
     }
 
     None
+}
+
+fn parser(input: &str) -> IResult<&str, Vec<String>> {
+    let input = input.trim();
+
+    separated_list1(
+        space0,
+        alt((
+            // single-quoted string
+            single_quoted,
+            // all others
+            is_not(" \t\r\n"),
+        ))
+        .map(String::from),
+    )
+    .parse(input)
+}
+
+fn single_quoted(input: &str) -> IResult<&str, &str> {
+    delimited(
+        tag("'"),
+        escaped(
+            is_not("'\\"),   // 1. Normal characters (not a quote or backslash)
+            '\\',            // 2. The escape character
+            one_of(r#"'\"#), // 3. What follows the escape (a quote or another backslash)
+        ),
+        tag("'"),
+    )
+    .parse(input)
 }
