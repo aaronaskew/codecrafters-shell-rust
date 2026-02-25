@@ -34,8 +34,6 @@ fn main() -> std::io::Result<()> {
 
                     if let Some(paths) = env::var_os("PATH") {
                         for path in env::split_paths(&paths) {
-                            // println!("{}", path.display());
-
                             let path = format!("{}/{}", path.display(), type_arg);
 
                             if Path::new(&path).is_executable() {
