@@ -1,6 +1,9 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
-use std::{env, path::Path};
+use std::{
+    env,
+    path::{Path, PathBuf},
+};
 
 use is_executable::IsExecutable;
 
@@ -30,21 +33,9 @@ fn main() -> std::io::Result<()> {
                 if matches!(type_arg.as_str(), "exit" | "echo" | "type") {
                     println!("{} is a shell builtin", type_arg);
                 } else {
-                    let mut executable_found = false;
-
-                    if let Some(paths) = env::var_os("PATH") {
-                        for path in env::split_paths(&paths) {
-                            let path = format!("{}/{}", path.display(), type_arg);
-
-                            if Path::new(&path).is_executable() {
-                                println!("{} is {}", type_arg, path);
-                                executable_found = true;
-                                break;
-                            }
-                        }
-                    }
-
-                    if !executable_found {
+                    if let Some(executable_path) = executable(args[1].clone()) {
+                        println!("{} is {}", args[1], executable_path.display());
+                    } else {
                         println!("{}: not found", type_arg);
                     }
                 }
@@ -54,4 +45,20 @@ fn main() -> std::io::Result<()> {
             }
         }
     }
+}
+
+fn executable(name: String) -> Option<PathBuf> {
+    if let Some(paths) = env::var_os("PATH") {
+        for path in env::split_paths(&paths) {
+            let path_string = format!("{}/{}", path.display(), name);
+
+            let path = Path::new(&path_string);
+
+            if path.is_executable() {
+                return Some(path.into());
+            }
+        }
+    }
+
+    None
 }
