@@ -12,9 +12,9 @@ use nom::{
     IResult, Parser,
     branch::alt,
     bytes::complete::{escaped, is_not, tag},
-    character::complete::{one_of, space0},
-    combinator::all_consuming,
-    multi::separated_list1,
+    character::complete::{one_of, space1},
+    combinator::{all_consuming, opt},
+    multi::{many1, separated_list1},
     sequence::delimited,
 };
 
@@ -28,12 +28,12 @@ fn main() -> Result<()> {
         io::stdin().read_line(&mut input)?;
 
         let input = input.trim();
-        
+
         if input.is_empty() {
             continue;
         }
 
-        let (_, args) = all_consuming(parser).parse(input).unwrap();
+        let (_, args) = all_consuming(parser).parse(input).expect("should parse");
 
         let first_arg = args.first().unwrap().as_str();
 
@@ -110,31 +110,28 @@ fn executable(name: &str) -> Option<PathBuf> {
     None
 }
 
-fn parser(input: &str) -> IResult<&str, Vec<String>> {
-    let input = input.trim();
+fn parse_unquoted_content(input: &str) -> IResult<&str, String> {
+    is_not(" \t\r\n'").map(String::from).parse(input)
+}
 
-    separated_list1(
-        space0,
-        alt((
-            // single-quoted string
-            single_quoted,
-            // all others
-            is_not(" \t\r\n"),
-        ))
-        .map(String::from),
+fn parse_single_quoted_content(input: &str) -> IResult<&str, String> {
+    delimited(
+        tag("'"),
+        opt(escaped(is_not("'\\"), '\\', one_of(r#"'\"#))),
+        tag("'"),
     )
+    .map(|s| String::from(s.unwrap_or_default()))
     .parse(input)
 }
 
-fn single_quoted(input: &str) -> IResult<&str, &str> {
-    delimited(
-        tag("'"),
-        escaped(
-            is_not("'\\"),   // 1. Normal characters (not a quote or backslash)
-            '\\',            // 2. The escape character
-            one_of(r#"'\"#), // 3. What follows the escape (a quote or another backslash)
-        ),
-        tag("'"),
-    )
-    .parse(input)
+fn parse_argument(input: &str) -> IResult<&str, String> {
+    many1(alt((parse_single_quoted_content, parse_unquoted_content)))
+        .map(|parts| parts.join(""))
+        .parse(input)
+}
+
+fn parser(input: &str) -> IResult<&str, Vec<String>> {
+    let input = input.trim();
+
+    separated_list1(space1, parse_argument).parse(input)
 }
