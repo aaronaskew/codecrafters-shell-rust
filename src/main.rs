@@ -1,7 +1,7 @@
 #[allow(unused_imports)]
 use std::io::{self, Write};
 use std::{
-    env::{self, current_dir, set_current_dir},
+    env::{self, current_dir, home_dir, set_current_dir},
     path::{Path, PathBuf},
     process::Command,
 };
@@ -45,7 +45,11 @@ fn main() -> std::io::Result<()> {
                 println!("{}", current_dir()?.display());
             }
             "cd" => {
-                let path = Path::new(&args[1]);
+                let path = if args[1] == "~" {
+                    home_dir().unwrap()
+                } else {
+                    PathBuf::from(&args[1])
+                };
 
                 if let Ok(exists) = path.try_exists()
                     && exists
