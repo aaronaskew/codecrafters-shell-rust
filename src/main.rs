@@ -11,11 +11,11 @@ use is_executable::IsExecutable;
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::{escaped, is_not, tag},
+    bytes::complete::{escaped, is_not, tag, take},
     character::complete::{char, one_of, space1},
     combinator::{all_consuming, opt},
     multi::{many1, separated_list1},
-    sequence::delimited,
+    sequence::{delimited, preceded},
 };
 
 fn main() -> Result<()> {
@@ -111,7 +111,9 @@ fn executable(name: &str) -> Option<PathBuf> {
 }
 
 fn parse_unquoted_content(input: &str) -> IResult<&str, String> {
-    is_not(" \t\r\n\"'").map(String::from).parse(input)
+    alt((is_not(" \t\r\n\"'\\"), preceded(char('\\'), take(1usize))))
+        .map(String::from)
+        .parse(input)
 }
 
 fn parse_single_quoted_content(input: &str) -> IResult<&str, String> {
