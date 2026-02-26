@@ -117,13 +117,9 @@ fn parse_unquoted_content(input: &str) -> IResult<&str, String> {
 }
 
 fn parse_single_quoted_content(input: &str) -> IResult<&str, String> {
-    delimited(
-        tag("'"),
-        opt(escaped(is_not("'\\"), '\\', one_of(r#"'\"#))),
-        tag("'"),
-    )
-    .map(|s| String::from(s.unwrap_or_default()))
-    .parse(input)
+    delimited(tag("'"), opt(is_not("'")), tag("'"))
+        .map(|s| String::from(s.unwrap_or_default()))
+        .parse(input)
 }
 
 fn parse_double_quoted_content(input: &str) -> IResult<&str, String> {
