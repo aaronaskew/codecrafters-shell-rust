@@ -12,7 +12,7 @@ use nom::{
     IResult, Parser,
     branch::alt,
     bytes::complete::{escaped, is_not, tag},
-    character::complete::{one_of, space1},
+    character::complete::{char, one_of, space1},
     combinator::{all_consuming, opt},
     multi::{many1, separated_list1},
     sequence::delimited,
@@ -111,7 +111,7 @@ fn executable(name: &str) -> Option<PathBuf> {
 }
 
 fn parse_unquoted_content(input: &str) -> IResult<&str, String> {
-    is_not(" \t\r\n'").map(String::from).parse(input)
+    is_not(" \t\r\n\"'").map(String::from).parse(input)
 }
 
 fn parse_single_quoted_content(input: &str) -> IResult<&str, String> {
@@ -124,10 +124,27 @@ fn parse_single_quoted_content(input: &str) -> IResult<&str, String> {
     .parse(input)
 }
 
+fn parse_double_quoted_content(input: &str) -> IResult<&str, String> {
+    delimited(
+        char('"'),
+        opt(escaped(is_not("'\\"), '\\', one_of(r#"'\"#))),
+        char('"'),
+    )
+    .map(|s| {
+        println!("  {s:?}");
+        String::from(s.unwrap_or_default())
+    })
+    .parse(input)
+}
+
 fn parse_argument(input: &str) -> IResult<&str, String> {
-    many1(alt((parse_single_quoted_content, parse_unquoted_content)))
-        .map(|parts| parts.join(""))
-        .parse(input)
+    many1(alt((
+        parse_single_quoted_content,
+        parse_double_quoted_content,
+        parse_unquoted_content,
+    )))
+    .map(|parts| parts.join(""))
+    .parse(input)
 }
 
 fn parser(input: &str) -> IResult<&str, Vec<String>> {
