@@ -131,7 +131,6 @@ fn parse_double_quoted_content(input: &str) -> IResult<&str, String> {
         char('"'),
     )
     .map(|s| {
-        println!("  {s:?}");
         String::from(s.unwrap_or_default())
     })
     .parse(input)
