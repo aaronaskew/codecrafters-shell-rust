@@ -11,9 +11,9 @@ use is_executable::IsExecutable;
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::{escaped, is_not, tag, take},
+    bytes::complete::{escaped, escaped_transform, is_not, tag, take},
     character::complete::{char, one_of, space1},
-    combinator::{all_consuming, opt},
+    combinator::{all_consuming, opt, value},
     multi::{many1, separated_list1},
     sequence::{delimited, preceded},
 };
@@ -125,10 +125,14 @@ fn parse_single_quoted_content(input: &str) -> IResult<&str, String> {
 fn parse_double_quoted_content(input: &str) -> IResult<&str, String> {
     delimited(
         char('"'),
-        opt(escaped(is_not("\"\\"), '\\', one_of(r#""\"#))),
+        opt(escaped_transform(
+            is_not(r#""\"#),
+            '\\',
+            alt((value("\\", tag("\\")), value("\"", tag("\"")))),
+        )),
         char('"'),
     )
-    .map(|s| String::from(s.unwrap_or_default()))
+    .map(|s| s.unwrap_or_default())
     .parse(input)
 }
 
