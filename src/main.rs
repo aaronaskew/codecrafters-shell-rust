@@ -11,8 +11,8 @@ use is_executable::IsExecutable;
 use nom::{
     IResult, Parser,
     branch::alt,
-    bytes::complete::{escaped, escaped_transform, is_not, tag, take},
-    character::complete::{char, one_of, space1},
+    bytes::complete::{escaped_transform, is_not, tag, take},
+    character::complete::{char, space1},
     combinator::{all_consuming, opt, value},
     multi::{many1, separated_list1},
     sequence::{delimited, preceded},
