@@ -1,18 +1,15 @@
-#[allow(unused_imports)]
-use anyhow::Result;
-use std::io::{self, Write};
+use codecrafters_shell::{parser::parser, shell_helper::ShellHelper};
+use rustyline::history::DefaultHistory;
 
-use codecrafters_shell::parser::parser;
-use nom::Parser;
+fn main() -> anyhow::Result<()> {
+    let mut rl = rustyline::Editor::<ShellHelper, DefaultHistory>::new()?;
 
-fn main() -> Result<()> {
+    let helper = ShellHelper {};
+
+    rl.set_helper(Some(helper));
+
     loop {
-        print!("$ ");
-        io::stdout().flush()?;
-
-        let mut input = String::new();
-
-        io::stdin().read_line(&mut input)?;
+        let input = rl.readline("$ ")?;
 
         let input = input.trim();
 
@@ -20,13 +17,13 @@ fn main() -> Result<()> {
             continue;
         }
 
-        let (_, command) = parser.parse(input).expect("should parse");
+        let (_, command) = nom::Parser::parse(&mut parser, input).expect("should parse");
 
         // dbg!(&command);
 
         match command.run() {
-            Ok(keep_running) => {
-                if !keep_running {
+            Ok(should_exit) => {
+                if should_exit {
                     break Ok(());
                 }
             }

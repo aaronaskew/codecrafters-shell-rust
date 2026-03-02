@@ -11,4 +11,5 @@ bytes = "1.11.1"        # helps manage buffers
 is_executable = "1.0.5"
 itertools = "0.14.0"
 nom = "8.0.0"
+rustyline = "17.0.2"
 thiserror = "2.0.18"    # error handling

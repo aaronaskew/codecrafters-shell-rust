@@ -12,7 +12,10 @@ use std::{
 use anyhow::Result;
 use is_executable::IsExecutable;
 
+
 pub mod parser;
+pub mod shell_helper;
+
 
 fn executable(name: &str) -> Option<PathBuf> {
     if let Some(paths) = env::var_os("PATH") {
@@ -147,6 +150,7 @@ impl Command {
         })
     }
 
+    /// Returns `Ok(true)` if shell should exit after this iteration. Returns `Ok(false)` if shell should continue.
     pub fn run(&self) -> Result<bool> {
         let mut stdout_writer: Box<dyn Write> = if self.stdout.is_normal() {
             Box::new(stdout().lock())
@@ -257,7 +261,7 @@ impl Command {
                     writeln!(stdout_writer, "{}", current_dir()?.display());
                 }
                 BuiltinCommand::Exit => {
-                    return Ok(false);
+                    return Ok(true);
                 }
             },
             CommandKind::External(arg_strings) => {
@@ -289,6 +293,6 @@ impl Command {
             }
         }
 
-        Ok(true)
+        Ok(false)
     }
 }
