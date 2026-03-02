@@ -12,7 +12,7 @@ use std::{
 use anyhow::Result;
 use is_executable::IsExecutable;
 
-pub mod parse;
+pub mod parser;
 
 fn executable(name: &str) -> Option<PathBuf> {
     if let Some(paths) = env::var_os("PATH") {

@@ -2,7 +2,7 @@
 use anyhow::Result;
 use std::io::{self, Write};
 
-use codecrafters_shell::parse::parser;
+use codecrafters_shell::parser::parser;
 use nom::Parser;
 
 fn main() -> Result<()> {
