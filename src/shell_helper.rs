@@ -1,8 +1,37 @@
+use std::env;
+use std::path::Path;
+
+use is_executable::IsExecutable;
 use rustyline::Helper;
 use rustyline::completion::{Candidate, Completer, Pair, extract_word};
 use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
+
+pub fn find_executables_in_path(start: &str) -> Vec<Pair> {
+    let mut executables = Vec::new();
+
+    if let Some(paths) = env::var_os("PATH") {
+        for path in env::split_paths(&paths) {
+            if let Ok(entries) = path.read_dir() {
+                for entry in entries.flatten() {
+                    let filename = entry.file_name().display().to_string();
+
+                    if filename.starts_with(start)
+                        && Path::new(&format!("{}/{}", path.display(), filename)).is_executable()
+                    {
+                        executables.push(Pair {
+                            display: filename.to_string(),
+                            replacement: format!("{filename} "),
+                        });
+                    }
+                }
+            }
+        }
+    }
+
+    executables
+}
 
 #[derive(Debug)]
 pub struct ShellHelper {}
@@ -32,6 +61,12 @@ impl Completer for ShellHelper {
                         display: builtin.to_string(),
                         replacement: format!("{} ", builtin),
                     });
+                } else {
+                    let mut executables = find_executables_in_path(word);
+
+                    if !executables.is_empty() {
+                        candidates.append(&mut executables);
+                    }
                 }
             }
 
