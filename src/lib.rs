@@ -1,7 +1,7 @@
 #![allow(unused)]
 
-use std::fs::{self, File};
-use std::io::{Write, stdout};
+use std::fs::{self, File, OpenOptions};
+use std::io::{Write, stderr, stdout};
 use std::{
     env::{self, current_dir, home_dir, set_current_dir},
     fmt::Error,
@@ -48,6 +48,12 @@ enum StderrKind {
     Normal,
     Redirect(String),
     Append(String),
+}
+
+impl StderrKind {
+    fn is_normal(&self) -> bool {
+        matches!(self, StderrKind::Normal)
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -142,28 +148,64 @@ impl Command {
     }
 
     pub fn run(&self) -> Result<bool> {
-        let mut stdout_writer: Box<dyn Write> = match &self.stdout {
-            StdoutKind::Normal => Box::new(stdout().lock()),
-            StdoutKind::Redirect(path) => {
-                let path_parts = path.split('/').collect::<Vec<&str>>();
+        let mut stdout_writer: Box<dyn Write> = if self.stdout.is_normal() {
+            Box::new(stdout().lock())
+        } else {
+            let path = match &self.stdout {
+                StdoutKind::Append(path) | StdoutKind::Redirect(path) => path,
+                _ => panic!("should not be Normal"),
+            };
 
-                fs::create_dir_all(path_parts[..(path_parts.len() - 1)].join("/"))?;
+            let path_parts = path.split('/').collect::<Vec<&str>>();
+            fs::create_dir_all(path_parts[..(path_parts.len() - 1)].join("/"))?;
 
-                Box::new(File::create(path)?)
+            if matches!(self.stdout, StdoutKind::Redirect(_)) {
+                Box::new(
+                    OpenOptions::new()
+                        .write(true)
+                        .truncate(true)
+                        .create(true)
+                        .open(path)?,
+                )
+            } else {
+                Box::new(
+                    OpenOptions::new()
+                        .append(true)
+                        .truncate(false)
+                        .create(true)
+                        .open(path)?,
+                )
             }
-            StdoutKind::Append(_) => todo!(),
         };
 
-        let mut stderr_writer: Box<dyn Write> = match &self.stderr {
-            StderrKind::Normal => Box::new(stdout().lock()),
-            StderrKind::Redirect(path) => {
-                let path_parts = path.split('/').collect::<Vec<&str>>();
+        let mut stderr_writer: Box<dyn Write> = if self.stderr.is_normal() {
+            Box::new(stderr().lock())
+        } else {
+            let path = match &self.stderr {
+                StderrKind::Append(path) | StderrKind::Redirect(path) => path,
+                _ => panic!("should not be Normal"),
+            };
 
-                fs::create_dir_all(path_parts[..(path_parts.len() - 1)].join("/"))?;
+            let path_parts = path.split('/').collect::<Vec<&str>>();
+            fs::create_dir_all(path_parts[..(path_parts.len() - 1)].join("/"))?;
 
-                Box::new(File::create(path)?)
+            if matches!(self.stderr, StderrKind::Redirect(_)) {
+                Box::new(
+                    OpenOptions::new()
+                        .write(true)
+                        .truncate(true)
+                        .create(true)
+                        .open(path)?,
+                )
+            } else {
+                Box::new(
+                    OpenOptions::new()
+                        .append(true)
+                        .truncate(false)
+                        .create(true)
+                        .open(path)?,
+                )
             }
-            StderrKind::Append(_) => todo!(),
         };
 
         match &self.command_kind {
