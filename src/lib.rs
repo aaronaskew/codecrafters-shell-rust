@@ -1,6 +1,6 @@
 #![allow(unused)]
 
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::{Write, stdout};
 use std::{
     env::{self, current_dir, home_dir, set_current_dir},
@@ -31,20 +31,20 @@ fn executable(name: &str) -> Option<PathBuf> {
 }
 
 #[derive(Debug, Clone)]
-enum StdoutType {
+enum StdoutKind {
     Normal,
     Redirect(String),
     Append(String),
 }
 
-impl StdoutType {
+impl StdoutKind {
     fn is_normal(&self) -> bool {
-        matches!(self, StdoutType::Normal)
+        matches!(self, StdoutKind::Normal)
     }
 }
 
 #[derive(Debug, Clone)]
-enum StderrType {
+enum StderrKind {
     Normal,
     Redirect(String),
     Append(String),
@@ -53,8 +53,8 @@ enum StderrType {
 #[derive(Debug, Clone)]
 enum CommandToken {
     Argument(String),
-    Stdout(StdoutType),
-    Stderr(StderrType),
+    Stdout(StdoutKind),
+    Stderr(StderrKind),
 }
 
 impl std::fmt::Display for CommandToken {
@@ -67,24 +67,50 @@ impl std::fmt::Display for CommandToken {
 }
 
 #[derive(Debug)]
+enum BuiltinCommand {
+    Echo(Vec<String>),
+    Type(Vec<String>),
+    Cd(Vec<String>),
+    Pwd,
+    Exit,
+}
+
+#[derive(Debug)]
+enum CommandKind {
+    Builtin(BuiltinCommand),
+    External(Vec<String>),
+}
+
+#[derive(Debug)]
 pub struct Command {
-    args: Vec<CommandToken>,
-    stdout: StdoutType,
+    command_kind: CommandKind,
+    stdout: StdoutKind,
+    stderr: StderrKind,
 }
 
 impl Command {
-    fn new(tokens: Vec<CommandToken>) -> Self {
-        let stdout: StdoutType = if let Some(stdout_token) = tokens
+    fn new(tokens: Vec<CommandToken>) -> anyhow::Result<Self> {
+        let stdout: StdoutKind = if let Some(stdout_token) = tokens
             .iter()
             .find(|arg| matches!(**arg, CommandToken::Stdout(_)))
             && let CommandToken::Stdout(stdout_type) = stdout_token
         {
             stdout_type.clone()
         } else {
-            StdoutType::Normal
+            StdoutKind::Normal
         };
 
-        let args = tokens
+        let stderr: StderrKind = if let Some(stderr_token) = tokens
+            .iter()
+            .find(|arg| matches!(**arg, CommandToken::Stderr(_)))
+            && let CommandToken::Stderr(stderr_type) = stderr_token
+        {
+            stderr_type.clone()
+        } else {
+            StderrKind::Normal
+        };
+
+        let args: Vec<CommandToken> = tokens
             .iter()
             .filter_map(|arg| {
                 if let CommandToken::Argument(_) = arg {
@@ -95,95 +121,128 @@ impl Command {
             })
             .collect();
 
-        Self { args, stdout }
+        let arg_strings: Vec<String> = args.iter().map(|arg| arg.to_string()).collect();
+
+        let first_arg = arg_strings.first().unwrap().as_str();
+
+        let command_kind = match first_arg {
+            "echo" => CommandKind::Builtin(BuiltinCommand::Echo(arg_strings[1..].to_vec())),
+            "type" => CommandKind::Builtin(BuiltinCommand::Type(arg_strings[1..].to_vec())),
+            "cd" => CommandKind::Builtin(BuiltinCommand::Cd(arg_strings[1..].to_vec())),
+            "pwd" => CommandKind::Builtin(BuiltinCommand::Pwd),
+            "exit" => CommandKind::Builtin(BuiltinCommand::Exit),
+            _ => CommandKind::External(arg_strings),
+        };
+
+        Ok(Self {
+            command_kind,
+            stdout,
+            stderr,
+        })
     }
 
     pub fn run(&self) -> Result<bool> {
         let mut stdout_writer: Box<dyn Write> = match &self.stdout {
-            StdoutType::Normal => Box::new(stdout().lock()),
-            StdoutType::Redirect(path) => Box::new(File::create(path)?),
-            StdoutType::Append(_) => todo!(),
+            StdoutKind::Normal => Box::new(stdout().lock()),
+            StdoutKind::Redirect(path) => {
+                let path_parts = path.split('/').collect::<Vec<&str>>();
+
+                fs::create_dir_all(path_parts[..(path_parts.len() - 1)].join("/"))?;
+
+                Box::new(File::create(path)?)
+            }
+            StdoutKind::Append(_) => todo!(),
         };
 
-        let arg_strings: Vec<String> = self.args.iter().map(|arg| arg.to_string()).collect();
+        let mut stderr_writer: Box<dyn Write> = match &self.stderr {
+            StderrKind::Normal => Box::new(stdout().lock()),
+            StderrKind::Redirect(path) => {
+                let path_parts = path.split('/').collect::<Vec<&str>>();
 
-        let first_arg = arg_strings.first().unwrap().as_str();
+                fs::create_dir_all(path_parts[..(path_parts.len() - 1)].join("/"))?;
 
-        match first_arg {
-            "exit" => {
-                return Ok(false);
+                Box::new(File::create(path)?)
             }
-            "echo" => {
-                writeln!(stdout_writer, "{}", arg_strings[1..].join(" "));
-            }
-            "type" => {
-                let type_command = arg_strings[1].clone();
+            StderrKind::Append(_) => todo!(),
+        };
 
-                if matches!(
-                    type_command.as_str(),
-                    "exit" | "echo" | "type" | "pwd" | "cd"
-                ) {
-                    writeln!(stdout_writer, "{} is a shell builtin", type_command);
-                } else {
-                    if let Some(executable_path) = executable(&type_command) {
-                        writeln!(
-                            stdout_writer,
-                            "{} is {}",
-                            &type_command,
-                            executable_path.display()
-                        );
+        match &self.command_kind {
+            CommandKind::Builtin(builtin_command) => match builtin_command {
+                BuiltinCommand::Echo(arg_strings) => {
+                    writeln!(stdout_writer, "{}", arg_strings.join(" "));
+                }
+                BuiltinCommand::Type(arg_strings) => {
+                    let type_command = arg_strings[0].clone();
+
+                    if matches!(
+                        type_command.as_str(),
+                        "exit" | "echo" | "type" | "pwd" | "cd"
+                    ) {
+                        writeln!(stdout_writer, "{} is a shell builtin", type_command);
                     } else {
-                        writeln!(stdout_writer, "{}: not found", type_command);
+                        if let Some(executable_path) = executable(&type_command) {
+                            writeln!(
+                                stdout_writer,
+                                "{} is {}",
+                                &type_command,
+                                executable_path.display()
+                            );
+                        } else {
+                            writeln!(stdout_writer, "{}: not found", type_command);
+                        }
                     }
                 }
-            }
-            "pwd" => {
-                writeln!(stdout_writer, "{}", current_dir()?.display());
-            }
-            "cd" => {
-                let path = if arg_strings[1] == "~" {
-                    home_dir().unwrap()
-                } else {
-                    PathBuf::from(&arg_strings[1])
-                };
+                BuiltinCommand::Cd(arg_strings) => {
+                    let path = if arg_strings[0] == "~" {
+                        home_dir().unwrap()
+                    } else {
+                        PathBuf::from(&arg_strings[0])
+                    };
 
-                if let Ok(exists) = path.try_exists()
-                    && exists
-                {
-                    set_current_dir(path)?;
-                } else {
-                    writeln!(
-                        stdout_writer,
-                        "cd: {}: No such file or directory",
-                        &arg_strings[1]
-                    );
+                    if let Ok(exists) = path.try_exists()
+                        && exists
+                    {
+                        set_current_dir(path)?;
+                    } else {
+                        writeln!(
+                            stdout_writer,
+                            "cd: {}: No such file or directory",
+                            &arg_strings[0]
+                        );
+                    }
                 }
-            }
-            _ => {
+                BuiltinCommand::Pwd => {
+                    writeln!(stdout_writer, "{}", current_dir()?.display());
+                }
+                BuiltinCommand::Exit => {
+                    return Ok(false);
+                }
+            },
+            CommandKind::External(arg_strings) => {
+                let first_arg = arg_strings.first().unwrap().as_str();
+
                 if executable(first_arg).is_some() {
                     let mut command = process::Command::new(first_arg);
 
                     command.args(arg_strings[1..].iter());
 
-                    match &self.stdout {
-                        StdoutType::Normal => {}
-                        StdoutType::Redirect(path) => {
-                            command.stdout(File::create(path)?);
-                        }
-                        StdoutType::Append(_) => todo!(),
-                    }
-
                     let output = command.output()?;
 
-                    if output.status.success() {
-                        let s = String::from_utf8_lossy(&output.stdout);
-                        print!("{}", s);
-                    } else {
-                        let err = String::from_utf8_lossy(&output.stderr);
-                        eprint!("{err}");
+                    let s = String::from_utf8_lossy(&output.stdout);
+                    if !s.is_empty() {
+                        write!(stdout_writer, "{s}");
+                    }
+
+                    let err = String::from_utf8_lossy(&output.stderr);
+                    if !err.is_empty() {
+                        write!(stderr_writer, "{err}");
                     }
                 } else {
-                    eprintln!("{}: command not found", arg_strings.join(" "));
+                    writeln!(
+                        stderr_writer,
+                        "{}: command not found",
+                        arg_strings.join(" ")
+                    );
                 }
             }
         }

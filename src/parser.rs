@@ -51,8 +51,14 @@ fn parse_stdout_token(input: &str) -> IResult<&str, CommandToken> {
         terminated(alt((tag(">"), tag("1>"))), space0),
         parse_content,
     )
-    .map(|path| CommandToken::Stdout(StdoutType::Redirect(path)))
+    .map(|path| CommandToken::Stdout(StdoutKind::Redirect(path)))
     .parse(input)
+}
+
+fn parse_stderr_token(input: &str) -> IResult<&str, CommandToken> {
+    preceded(terminated(tag("2>"), space0), parse_content)
+        .map(|path| CommandToken::Stderr(StderrKind::Redirect(path)))
+        .parse(input)
 }
 
 fn parse_argument_token(input: &str) -> IResult<&str, CommandToken> {
@@ -60,13 +66,13 @@ fn parse_argument_token(input: &str) -> IResult<&str, CommandToken> {
 }
 
 fn parse_token(input: &str) -> IResult<&str, CommandToken> {
-    alt((parse_stdout_token, parse_argument_token)).parse(input)
+    alt((parse_stdout_token, parse_stderr_token, parse_argument_token)).parse(input)
 }
 
 pub fn parser(input: &str) -> IResult<&str, Command> {
     let input = input.trim();
 
     all_consuming(separated_list1(space1, parse_token))
-        .map(Command::new)
+        .map(|tokens| Command::new(tokens).unwrap())
         .parse(input)
 }
