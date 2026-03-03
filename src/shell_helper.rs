@@ -69,11 +69,15 @@ impl Completer for ShellHelper {
 
             let mut path_splits = word.split('/').collect::<Vec<_>>();
 
+            // dbg!(&path_splits);
+
             let relative_search_path = if word.contains('/') {
                 path_splits[..path_splits.len() - 1].join("/")
             } else {
                 String::new()
             };
+
+            // dbg!(&relative_search_path);
 
             let (absolute_search_path, partial_filename) = if !relative_search_path.is_empty() {
                 let partial_filename = path_splits.pop().unwrap();
@@ -83,7 +87,7 @@ impl Completer for ShellHelper {
                 (cwd.clone(), word)
             };
 
-            // dbg!(&search_path, &partial_filename);
+            // dbg!(&absolute_search_path, &partial_filename);
 
             if let Ok(entries) = absolute_search_path.read_dir() {
                 for entry in entries.flatten() {
@@ -95,20 +99,26 @@ impl Completer for ShellHelper {
                         .to_string()
                         .starts_with(partial_filename)
                     {
-                        if entry.path().is_file() {
-                            let path_string = if absolute_search_path != cwd {
+                        // dbg!(&entry);
+
+                        let path_string = if entry.path().is_dir() {
+                            // Directory
+                            if relative_search_path.is_empty() {
+                                format!("{}", entry.file_name().display())
+                            } else {
+                                format!("{}/{}", relative_search_path, entry.file_name().display())
+                            }
+                        } else {
+                            // File
+                            if absolute_search_path != cwd {
                                 // if there is a relative path from cwd
                                 format!("{}/{}", relative_search_path, entry.file_name().display())
                             } else {
                                 entry.file_name().display().to_string()
-                            };
+                            }
+                        };
 
-                            candidates.push(path_string);
-                        }
-
-                        if entry.path().is_dir() {
-                            candidates.push(entry.file_name().display().to_string());
-                        }
+                        candidates.push(path_string);
                     }
                 }
             }
