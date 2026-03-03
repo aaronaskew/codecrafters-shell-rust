@@ -8,7 +8,7 @@ use rustyline::highlight::Highlighter;
 use rustyline::hint::Hinter;
 use rustyline::validate::Validator;
 
-pub fn find_executables_in_path(start: &str) -> Vec<Pair> {
+pub fn find_executables_in_path(start: &str) -> Vec<String> {
     let mut executables = Vec::new();
 
     if let Some(paths) = env::var_os("PATH") {
@@ -20,10 +20,7 @@ pub fn find_executables_in_path(start: &str) -> Vec<Pair> {
                     if filename.starts_with(start)
                         && Path::new(&format!("{}/{}", path.display(), filename)).is_executable()
                     {
-                        executables.push(Pair {
-                            display: filename.to_string(),
-                            replacement: format!("{filename} "),
-                        });
+                        executables.push(filename.to_string());
                     }
                 }
             }
@@ -39,7 +36,7 @@ pub struct ShellHelper {}
 impl Helper for ShellHelper {}
 
 impl Completer for ShellHelper {
-    type Candidate = Pair;
+    type Candidate = String;
 
     fn complete(
         &self,
@@ -49,34 +46,28 @@ impl Completer for ShellHelper {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, Some('\\'), |c| matches!(c, ' ' | '\t'));
 
-        let is_command = line[..start].trim().is_empty();
+        let builtins = ["echo", "type", "cd", "pwd", "exit"];
 
-        if is_command {
-            let mut candidates = Vec::new();
-            let builtins = ["echo", "type", "cd", "pwd", "exit"];
+        let mut candidates: Vec<Self::Candidate> = builtins
+            .iter()
+            .filter(|builtin| builtin.starts_with(word))
+            .map(|s| s.to_string())
+            .collect();
 
-            for builtin in builtins {
-                if builtin.starts_with(word) {
-                    candidates.push(Self::Candidate {
-                        display: builtin.to_string(),
-                        replacement: format!("{} ", builtin),
-                    });
-                } else {
-                    let mut executables = find_executables_in_path(word);
+        let mut executables = find_executables_in_path(word);
 
-                    if !executables.is_empty() {
-                        candidates.append(&mut executables);
-                    }
-                }
-            }
+        candidates.append(&mut executables);
 
-            candidates.sort_by(|a, b| a.display.cmp(&b.display));
-            candidates.dedup_by(|a, b| a.display == b.display);
+        candidates.sort();
+        candidates.dedup();
 
-            return Ok((start, candidates));
-        }
+        let candidates = if candidates.len() == 1 {
+            vec![format!("{} ", candidates[0])]
+        } else {
+            candidates
+        };
 
-        Ok((0, Vec::with_capacity(0)))
+        Ok((start, candidates))
     }
 
     fn update(

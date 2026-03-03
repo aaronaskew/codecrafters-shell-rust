@@ -1,8 +1,12 @@
 use codecrafters_shell::{parser::parser, shell_helper::ShellHelper};
-use rustyline::history::DefaultHistory;
+use rustyline::{Config, history::DefaultHistory};
 
 fn main() -> anyhow::Result<()> {
-    let mut rl = rustyline::Editor::<ShellHelper, DefaultHistory>::new()?;
+    let config = Config::builder()
+        .completion_type(rustyline::CompletionType::List)
+        .build();
+
+    let mut rl = rustyline::Editor::<ShellHelper, DefaultHistory>::with_config(config)?;
 
     let helper = ShellHelper {};
 
