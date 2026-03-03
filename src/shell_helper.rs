@@ -35,6 +35,18 @@ pub fn find_executables_in_path(start: &str) -> Vec<String> {
 #[derive(Debug)]
 pub struct ShellHelper {}
 
+impl ShellHelper {
+    fn is_dir(path: &str) -> bool {
+        if let Ok(cwd) = current_dir()
+            && cwd.join(path).is_dir()
+        {
+            true
+        } else {
+            false
+        }
+    }
+}
+
 impl Helper for ShellHelper {}
 
 impl Completer for ShellHelper {
@@ -129,14 +141,15 @@ impl Completer for ShellHelper {
         candidates.sort();
         candidates.dedup();
 
-        let candidates = if candidates.len() == 1 {
-            if let Ok(cwd) = current_dir()
-                && cwd.join(&candidates[0]).is_dir()
-            {
-                vec![format!("{}/", candidates[0])]
-            } else {
-                vec![format!("{} ", candidates[0])]
+        // Add trailing slash to directories
+        for candidate in candidates.iter_mut() {
+            if Self::is_dir(candidate) {
+                candidate.push('/');
             }
+        }
+
+        let candidates = if candidates.len() == 1 && !Self::is_dir(&candidates[0]) {
+            vec![format!("{} ", candidates[0])]
         } else {
             candidates.clone()
         };
