@@ -89,21 +89,26 @@ impl Completer for ShellHelper {
                 for entry in entries.flatten() {
                     // dbg!(&entry);
 
-                    if entry.path().is_file()
-                        && entry
-                            .file_name()
-                            .display()
-                            .to_string()
-                            .starts_with(partial_filename)
+                    if entry
+                        .file_name()
+                        .display()
+                        .to_string()
+                        .starts_with(partial_filename)
                     {
-                        let path_string = if absolute_search_path != cwd {
-                            // if there is a relative path from cwd
-                            format!("{}/{}", relative_search_path, entry.file_name().display())
-                        } else {
-                            entry.file_name().display().to_string()
-                        };
+                        if entry.path().is_file() {
+                            let path_string = if absolute_search_path != cwd {
+                                // if there is a relative path from cwd
+                                format!("{}/{}", relative_search_path, entry.file_name().display())
+                            } else {
+                                entry.file_name().display().to_string()
+                            };
 
-                        candidates.push(path_string);
+                            candidates.push(path_string);
+                        }
+
+                        if entry.path().is_dir() {
+                            candidates.push(entry.file_name().display().to_string());
+                        }
                     }
                 }
             }
@@ -115,7 +120,13 @@ impl Completer for ShellHelper {
         candidates.dedup();
 
         let candidates = if candidates.len() == 1 {
-            vec![format!("{} ", candidates[0])]
+            if let Ok(cwd) = current_dir()
+                && cwd.join(&candidates[0]).is_dir()
+            {
+                vec![format!("{}/", candidates[0])]
+            } else {
+                vec![format!("{} ", candidates[0])]
+            }
         } else {
             candidates.clone()
         };
