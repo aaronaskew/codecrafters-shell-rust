@@ -3,6 +3,7 @@ use std::fs::read_dir;
 use std::path::Path;
 
 use is_executable::IsExecutable;
+use itertools::Itertools;
 use rustyline::Helper;
 use rustyline::completion::{Candidate, Completer, Pair, extract_word};
 use rustyline::highlight::Highlighter;
@@ -66,16 +67,49 @@ impl Completer for ShellHelper {
         } else {
             let cwd = current_dir()?;
 
-            if let Ok(entries) = cwd.read_dir() {
+            let mut path_splits = word.split('/').collect::<Vec<_>>();
+
+            let relative_search_path = if word.contains('/') {
+                path_splits[..path_splits.len() - 1].join("/")
+            } else {
+                String::new()
+            };
+
+            let (absolute_search_path, partial_filename) = if !relative_search_path.is_empty() {
+                let partial_filename = path_splits.pop().unwrap();
+
+                (cwd.join(&relative_search_path), partial_filename)
+            } else {
+                (cwd.clone(), word)
+            };
+
+            // dbg!(&search_path, &partial_filename);
+
+            if let Ok(entries) = absolute_search_path.read_dir() {
                 for entry in entries.flatten() {
+                    // dbg!(&entry);
+
                     if entry.path().is_file()
-                        && entry.file_name().display().to_string().starts_with(word)
+                        && entry
+                            .file_name()
+                            .display()
+                            .to_string()
+                            .starts_with(partial_filename)
                     {
-                        candidates.push(entry.file_name().display().to_string());
+                        let path_string = if absolute_search_path != cwd {
+                            // if there is a relative path from cwd
+                            format!("{}/{}", relative_search_path, entry.file_name().display())
+                        } else {
+                            entry.file_name().display().to_string()
+                        };
+
+                        candidates.push(path_string);
                     }
                 }
             }
         }
+
+        // dbg!(&candidates);
 
         candidates.sort();
         candidates.dedup();
