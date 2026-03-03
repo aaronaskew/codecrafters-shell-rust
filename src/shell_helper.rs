@@ -1,4 +1,5 @@
-use std::env;
+use std::env::{self, current_dir};
+use std::fs::read_dir;
 use std::path::Path;
 
 use is_executable::IsExecutable;
@@ -46,17 +47,35 @@ impl Completer for ShellHelper {
     ) -> rustyline::Result<(usize, Vec<Self::Candidate>)> {
         let (start, word) = extract_word(line, pos, Some('\\'), |c| matches!(c, ' ' | '\t'));
 
-        let builtins = ["echo", "type", "cd", "pwd", "exit"];
+        let is_command = line[..start].is_empty();
 
-        let mut candidates: Vec<Self::Candidate> = builtins
-            .iter()
-            .filter(|builtin| builtin.starts_with(word))
-            .map(|s| s.to_string())
-            .collect();
+        let mut candidates = vec![];
 
-        let mut executables = find_executables_in_path(word);
+        if is_command {
+            let builtins = ["echo", "type", "cd", "pwd", "exit"];
 
-        candidates.append(&mut executables);
+            candidates = builtins
+                .iter()
+                .filter(|builtin| builtin.starts_with(word))
+                .map(|s| s.to_string())
+                .collect();
+
+            let mut executables = find_executables_in_path(word);
+
+            candidates.append(&mut executables);
+        } else {
+            let cwd = current_dir()?;
+
+            if let Ok(entries) = cwd.read_dir() {
+                for entry in entries.flatten() {
+                    if entry.path().is_file()
+                        && entry.file_name().display().to_string().starts_with(word)
+                    {
+                        candidates.push(entry.file_name().display().to_string());
+                    }
+                }
+            }
+        }
 
         candidates.sort();
         candidates.dedup();
@@ -64,7 +83,7 @@ impl Completer for ShellHelper {
         let candidates = if candidates.len() == 1 {
             vec![format!("{} ", candidates[0])]
         } else {
-            candidates
+            candidates.clone()
         };
 
         Ok((start, candidates))
