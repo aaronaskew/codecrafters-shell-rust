@@ -13,7 +13,15 @@ fn main() -> anyhow::Result<()> {
     rl.set_helper(Some(helper));
 
     loop {
-        let input = rl.readline("$ ")?;
+        let input = match rl.readline("$ ") {
+            Ok(line) => line,
+            Err(rustyline::error::ReadlineError::Eof) => {
+                break Ok(());
+            }
+            Err(err) => {
+                return Err(err.into());
+            }
+        };
 
         let input = input.trim();
 
