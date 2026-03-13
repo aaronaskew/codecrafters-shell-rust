@@ -12,7 +12,7 @@ fn main() -> anyhow::Result<()> {
 
     rl.set_helper(Some(helper));
 
-    loop {
+    'main_loop: loop {
         let input = match rl.readline("$ ") {
             Ok(line) => line,
             Err(rustyline::error::ReadlineError::Eof) => {
@@ -29,18 +29,20 @@ fn main() -> anyhow::Result<()> {
             continue;
         }
 
-        let (_, command) = nom::Parser::parse(&mut parser, input).expect("should parse");
+        let (_, commands) = nom::Parser::parse(&mut parser, input).expect("should parse");
 
         // dbg!(&command);
 
-        match command.run() {
-            Ok(should_exit) => {
-                if should_exit {
-                    break Ok(());
+        for command in commands {
+            match command.run() {
+                Ok(should_exit) => {
+                    if should_exit {
+                        break 'main_loop Ok(());
+                    }
                 }
-            }
-            Err(err) => {
-                return Err(err);
+                Err(err) => {
+                    return Err(err);
+                }
             }
         }
     }

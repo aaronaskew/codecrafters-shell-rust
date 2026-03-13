@@ -91,10 +91,18 @@ fn parse_token(input: &str) -> IResult<&str, CommandToken> {
     .parse(input)
 }
 
-pub fn parser(input: &str) -> IResult<&str, Command> {
-    let input = input.trim();
-
-    all_consuming(separated_list1(space1, parse_token))
+pub fn parse_command(input: &str) -> IResult<&str, Command> {
+    separated_list1(space1, parse_token)
         .map(|tokens| Command::new(tokens).unwrap())
         .parse(input)
+}
+
+pub fn parser(input: &str) -> IResult<&str, Vec<Command>> {
+    let input = input.trim();
+
+    all_consuming(separated_list1(
+        delimited(space0, char('|'), space0),
+        parse_command,
+    ))
+    .parse(input)
 }
