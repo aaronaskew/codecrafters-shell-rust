@@ -32,20 +32,10 @@ fn shell_session() -> Result<PtyReplSession> {
     let mut cmd = Command::new(path);
     cmd.env("TERM", "dumb");
 
-    let mut shell = PtyReplSession {
-        // for `echo_on` you need to figure that out by trial and error.
-        // For bash and python repl it is false
-        echo_on: false,
+    let mut shell = PtyReplSession::new(spawn_command(cmd, Some(2000))?, "$".to_owned())
+        .echo_on(false)
+        .quit_command(Some("exit".to_owned()));
 
-        // used for `wait_for_prompt()`
-        prompt: "$ ".to_owned(),
-        pty_session: spawn_command(cmd, Some(2000))?,
-        // command which is sent when the instance of this struct is dropped
-        // in the below example this is not needed, but if you don't explicitly
-        // exit a REPL then rexpect tries to send a SIGTERM and depending on the repl
-        // this does not end the repl and would end up in an error
-        quit_command: Some("exit".to_owned()),
-    };
     shell.wait_for_prompt()?;
     Ok(shell)
 }
