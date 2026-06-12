@@ -1,4 +1,4 @@
-use codecrafters_shell::{parser::parser, shell_helper::ShellHelper};
+use codecrafters_shell::{parse::parser, shell_helper::ShellHelper};
 use rustyline::{Config, history::DefaultHistory};
 
 fn main() -> anyhow::Result<()> {

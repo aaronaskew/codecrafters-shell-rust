@@ -13,7 +13,7 @@ use anyhow::Result;
 use is_executable::IsExecutable;
 
 
-pub mod parser;
+pub mod parse;
 pub mod shell_helper;
 
 
